@@ -1,0 +1,26 @@
+name:               jvm
+version:            1.0
+Build-Type:         Simple
+cabal-version:      >=1.10
+
+Library
+  exposed-modules:  Language.Java
+                    Language.Java.Safe
+  other-modules:    Language.Java.Internal
+                    Language.Java.Unsafe
+  ghc-options:      -O2 -Wall -fno-ignore-asserts -fwarn-tabs -fwarn-missing-import-lists -Wunused-packages
+  cc-options:       -std=c11
+  build-depends:    base,
+                    bytestring,
+                    choice,
+                    constraints,
+                    distributed-closure,
+                    exceptions,
+                    jni,
+                    linear-base,
+                    singletons,
+                    template-haskell,
+                    text,
+                    vector
+  hs-source-dirs:   src/common, src/linear-types
+  default-language: Haskell2010
