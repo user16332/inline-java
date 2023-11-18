@@ -35,6 +35,9 @@ module Foreign.JNI.Unsafe.Internal
   , JVMException(..)
   , throw
   , throwNew
+    --
+  , jniInit
+  , jniVersion
     -- ** Query functions
   , findClass
   , getFieldID
@@ -221,12 +224,16 @@ import System.IO.Unsafe (unsafePerformIO)
 import Prelude hiding (String)
 import qualified Prelude
 
+import Foreign.C.String (CString)
+
 C.context (C.baseCtx <> C.bsCtx <> jniCtx)
 
 C.include "<jni.h>"
 C.include "<stdio.h>"
 C.include "<errno.h>"
 C.include "<stdlib.h>"
+
+$(C.verbatim "static JavaVM* jniJvm; ")
 
 -- A thread-local variable to cache the JNI environment. Accessing this variable
 -- is faster than calling @jvm->GetEnv()@.
@@ -351,23 +358,42 @@ runInAttachedThread io = do
           detachCurrentThread
           io
 
+jniInit :: Ptr JNIEnv -> IO ()
+jniInit env = do
+    throwIfNotOK_
+      [CU.exp| jint {
+        (*$(JNIEnv *env))->GetJavaVM($(JNIEnv *env), (JavaVM**)&jniJvm) }
+      |]
+
+jniVersion :: Ptr JNIEnv -> IO Int32
+jniVersion env = do
+    [CU.exp| jint {
+      (*$(JNIEnv *env))->GetVersion($(JNIEnv *env)) }
+    |]
+
 -- | The current JVM
 --
 -- Assumes there's at most one JVM. The current JNI spec (2016) says only
 -- one JVM per process is supported anyways.
 {-# NOINLINE jvm #-}
 jvm :: Ptr JVM
-jvm = unsafePerformIO $ alloca $ \pjvm -> alloca $ \pnum_jvms -> do
-    throwIfNotOK_
-      [CU.exp| jint {
-        JNI_GetCreatedJavaVMs($(JavaVM** pjvm), 1, $(jsize* pnum_jvms))
-      }|]
-    num_jvms <- peek pnum_jvms
-    when (num_jvms == 0) $
+jvm = unsafePerformIO $ [CU.exp| JavaVM* { jniJvm } |] >>= \case
+    vm | vm == nullPtr ->
       fail "JNI_GetCreatedJavaVMs: No JVM has been initialized yet."
-    when (num_jvms > 1) $
-      fail "JNI_GetCreatedJavaVMs: There are multiple JVMs but only one is supported."
-    peek pjvm
+    vm -> return vm
+
+--jvm :: Ptr JVM
+--jvm = unsafePerformIO $ alloca $ \pjvm -> alloca $ \pnum_jvms -> do
+--    throwIfNotOK_
+--      [CU.exp| jint {
+--        JNI_GetCreatedJavaVMs($(JavaVM** pjvm), 1, $(jsize* pnum_jvms))
+--      }|]
+--    num_jvms <- peek pnum_jvms
+--    when (num_jvms == 0) $
+--      fail "JNI_GetCreatedJavaVMs: No JVM has been initialized yet."
+--    when (num_jvms > 1) $
+--      fail "JNI_GetCreatedJavaVMs: There are multiple JVMs but only one is supported."
+--    peek pjvm
 
 -- | Yields the JNIEnv of the calling thread.
 --
@@ -397,28 +423,30 @@ useAsCStrings strs m =
 -- of JNI_CreateJavaVM and JNI_DestroyJavaVM). Best practice: use 'withJVM'
 -- instead. Only useful for GHCi.
 newJVM :: [ByteString] -> IO JVM
-newJVM options = JVM_ <$> do
-    checkBoundness
-    startJVM options <* startFinalizerThread
-  where
-    startJVM options =
-      useAsCStrings options $ \cstrs -> do
-        withArray cstrs $ \(coptions :: Ptr (Ptr CChar)) -> do
-          let n = fromIntegral (length cstrs) :: C.CInt
-
-          [C.block| JavaVM * {
-            JavaVM *jvm;
-            JavaVMInitArgs vm_args;
-            JavaVMOption *options = malloc(sizeof(JavaVMOption) * $(int n));
-            for(int i = 0; i < $(int n); i++)
-                options[i].optionString = $(char **coptions)[i];
-            vm_args.version = JNI_VERSION_1_6;
-            vm_args.nOptions = $(int n);
-            vm_args.options = options;
-            vm_args.ignoreUnrecognized = 0;
-            JNI_CreateJavaVM(&jvm, (void**)&jniEnv, &vm_args);
-            free(options);
-            return jvm; } |]
+newJVM = undefined
+--newJVM :: [ByteString] -> IO JVM
+--newJVM options = JVM_ <$> do
+--    checkBoundness
+--    startJVM options <* startFinalizerThread
+--  where
+--    startJVM options =
+--      useAsCStrings options $ \cstrs -> do
+--        withArray cstrs $ \(coptions :: Ptr (Ptr CChar)) -> do
+--          let n = fromIntegral (length cstrs) :: C.CInt
+--
+--          [C.block| JavaVM * {
+--            JavaVM *jvm;
+--            JavaVMInitArgs vm_args;
+--            JavaVMOption *options = malloc(sizeof(JavaVMOption) * $(int n));
+--            for(int i = 0; i < $(int n); i++)
+--                options[i].optionString = $(char **coptions)[i];
+--            vm_args.version = JNI_VERSION_1_6;
+--            vm_args.nOptions = $(int n);
+--            vm_args.options = options;
+--            vm_args.ignoreUnrecognized = 0;
+--            JNI_CreateJavaVM(&jvm, (void**)&jniEnv, &vm_args);
+--            free(options);
+--            return jvm; } |]
 
 checkBoundness :: IO ()
 checkBoundness =
