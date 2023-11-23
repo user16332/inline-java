@@ -8,6 +8,8 @@ Library
   exposed-modules:  Foreign.JNI
                     Foreign.JNI.Types
                     Foreign.JNI.String
+                    Foreign.JNI.Safe
+                    Foreign.JNI.Types.Safe
   other-modules:    Foreign.JNI.Internal
                     Foreign.JNI.Internal.BackgroundWorker
                     Foreign.JNI.Internal.RWLock
@@ -25,6 +27,7 @@ Library
                     containers,
                     deepseq,
                     inline-c,
+                    linear-base,
                     singletons-base,
                     stm,
                     text
