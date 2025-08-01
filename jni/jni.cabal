@@ -1,5 +1,5 @@
 name:                jni
-version:             0.8.0
+version:             1.0
 synopsis:            Complete JNI raw bindings.
 description:         Please see README.md.
 homepage:            https://github.com/tweag/inline-java/tree/master/jni#readme
@@ -18,10 +18,16 @@ source-repository head
   location: https://github.com/tweag/inline-java
   subdir: jni
 
+Flag android
+  Description:   Turn on JNI Android compatibility
+  Default:       False
+
 library
   hs-source-dirs: src/common src/linear-types
   cc-options: -std=c11
-  extra-libraries: jvm
+  if flag(android)
+    cpp-options: -DANDROID
+  include-dirs: include, include/unix
   exposed-modules:
     Foreign.JNI
     Foreign.JNI.Types
@@ -44,8 +50,8 @@ library
     constraints >=0.8,
     deepseq >=1.4.2,
     inline-c >=0.6,
-    linear-base >=0.5 && <0.6,
-    singletons-base >=3.4,
+    linear-base ==0.1.0,
+    singletons-base ==3.2,
     stm >= 2.3,
     text >= 1.2.3
   default-language: Haskell2010
